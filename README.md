@@ -1,6 +1,6 @@
 # Node Job Digest
 
-Searches Adzuna every day for **Node.js Developer** or **Node.js Engineer** openings in Hyderabad, Bengaluru, Chennai, Visakhapatnam, and Remote. It emails the five newest distinct jobs, including company, application link, and key requirements.
+Searches Adzuna every day for experienced backend roles in Hyderabad, Bengaluru, Chennai, Visakhapatnam, and Remote. It ranks **Node.js, Express.js, MongoDB, MySQL, Redis, REST API, microservices, WebSockets, JWT/RBAC, Jest, and Swagger/OpenAPI** matches, then emails five distinct openings with company, application link, and key requirements.
 
 ## Setup
 

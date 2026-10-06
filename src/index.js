@@ -3,8 +3,13 @@ require('dotenv').config();
 const nodemailer = require('nodemailer');
 
 const locations = ['Hyderabad', 'Bengaluru', 'Chennai', 'Visakhapatnam', 'Remote'];
+const searchTerms = ['Node.js', 'Backend Software Engineer'];
 const recipient = process.env.JOB_EMAIL_TO || 'rajeshvantapati117@gmail.com';
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const skillKeywords = [
+  'node.js', 'express', 'mongodb', 'mysql', 'redis', 'rest api', 'microservice',
+  'websocket', 'jwt', 'oauth', 'rbac', 'sequelize', 'mongoose', 'jest', 'swagger', 'openapi',
+];
 
 const required = (name) => {
   if (!process.env[name]) throw new Error(`Missing ${name}. Add it to .env or GitHub Secrets.`);
@@ -30,15 +35,14 @@ function requirements(description) {
   return (selected.length ? selected : sentences.slice(0, 2)).join(' ').trim() || 'See the application page for requirements.';
 }
 
-async function search(location) {
+async function search(location, searchTerm) {
   const url = new URL('https://api.adzuna.com/v1/api/jobs/in/search/1');
   url.search = new URLSearchParams({
     app_id: required('ADZUNA_APP_ID'),
     app_key: required('ADZUNA_APP_KEY'),
-    // Adzuna treats `OR` as literal text, so use the common technology term.
-    what: 'Node.js',
+    what: searchTerm,
     where: location,
-    results_per_page: '20',
+    results_per_page: '50',
     max_days_old: '14',
     sort_by: 'date',
   }).toString();
@@ -50,25 +54,26 @@ async function search(location) {
   }
   if (!response.ok) throw new Error(`Adzuna request failed for ${location}: ${response.status}`);
   const { results = [] } = await response.json();
-  return results.map((job) => ({ ...job, searchLocation: location }));
+  return results.map((job) => ({ ...job, searchLocation: location, searchTerm }));
 }
 
 function selectJobs(results) {
   const seen = new Set();
+  const skillScore = (job) => {
+    const text = `${job.title} ${plainText(job.description)}`.toLowerCase();
+    const title = job.title.toLowerCase();
+    const matches = skillKeywords.reduce((total, skill) => total + (text.includes(skill) ? 1 : 0), 0);
+    let score = matches * 15;
+    if (/node\s*\.?\s*js/.test(title)) score += 80;
+    if (/backend|software engineer|api developer/.test(title)) score += 25;
+    if (/java|spring|sap|oracle/.test(title) && !/node\s*\.?\s*js/.test(title)) score -= 60;
+    return { matches, score };
+  };
   return results
     .filter((job) => job.title && job.company?.display_name && job.redirect_url)
-    .filter((job) => /node\s*\.?\s*js/i.test(`${job.title} ${plainText(job.description)}`))
+    .filter((job) => skillScore(job).matches >= 2)
     .filter((job) => !seen.has(job.redirect_url) && seen.add(job.redirect_url))
-    .sort((a, b) => {
-      const score = (job) => {
-        const title = job.title.toLowerCase();
-        let value = /node\s*\.?\s*js/.test(title) ? 100 : 0;
-        if (/developer|engineer|backend/.test(title)) value += 20;
-        if (/java|spring|sap|oracle/.test(title) && !/node\s*\.?\s*js/.test(title)) value -= 80;
-        return value;
-      };
-      return score(b) - score(a) || new Date(b.created || 0) - new Date(a.created || 0);
-    })
+    .sort((a, b) => skillScore(b).score - skillScore(a).score || new Date(b.created || 0) - new Date(a.created || 0))
     .slice(0, 5);
 }
 
@@ -86,9 +91,11 @@ function composeEmail(jobs) {
 async function main() {
   const results = [];
   for (const location of locations) {
-    results.push(...await search(location));
-    // Keep free-tier API requests below burst-rate limits.
-    if (location !== locations.at(-1)) await sleep(1000);
+    for (const searchTerm of searchTerms) {
+      results.push(...await search(location, searchTerm));
+      // Keep free-tier API requests below burst-rate limits.
+      await sleep(1000);
+    }
   }
   const jobs = selectJobs(results);
   if (!jobs.length) throw new Error('No matching jobs were found today.');
