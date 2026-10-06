@@ -35,7 +35,8 @@ async function search(location) {
   url.search = new URLSearchParams({
     app_id: required('ADZUNA_APP_ID'),
     app_key: required('ADZUNA_APP_KEY'),
-    what: 'entry level Node.js Developer OR Node.js Engineer',
+    // Adzuna treats `OR` as literal text, so use the common technology term.
+    what: 'Node.js',
     where: location,
     results_per_page: '20',
     max_days_old: '14',
@@ -56,8 +57,18 @@ function selectJobs(results) {
   const seen = new Set();
   return results
     .filter((job) => job.title && job.company?.display_name && job.redirect_url)
+    .filter((job) => /node\s*\.?\s*js/i.test(`${job.title} ${plainText(job.description)}`))
     .filter((job) => !seen.has(job.redirect_url) && seen.add(job.redirect_url))
-    .sort((a, b) => new Date(b.created || 0) - new Date(a.created || 0))
+    .sort((a, b) => {
+      const score = (job) => {
+        const title = job.title.toLowerCase();
+        let value = /node\s*\.?\s*js/.test(title) ? 100 : 0;
+        if (/developer|engineer|backend/.test(title)) value += 20;
+        if (/java|spring|sap|oracle/.test(title) && !/node\s*\.?\s*js/.test(title)) value -= 80;
+        return value;
+      };
+      return score(b) - score(a) || new Date(b.created || 0) - new Date(a.created || 0);
+    })
     .slice(0, 5);
 }
 
@@ -66,9 +77,9 @@ function composeEmail(jobs) {
   const text = jobs.map((job, index) => `${index + 1}. ${job.title} — ${job.company.display_name}\nLocation: ${job.location?.display_name || job.searchLocation}\nKey requirements: ${requirements(job.description)}\nApply: ${job.redirect_url}`).join('\n\n');
   const rows = jobs.map((job, index) => `<tr><td>${index + 1}</td><td><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.display_name)}<br>${escapeHtml(job.location?.display_name || job.searchLocation)}</td><td>${escapeHtml(requirements(job.description))}</td><td><a href="${escapeHtml(job.redirect_url)}">Apply now</a></td></tr>`).join('');
   return {
-    subject: `Daily entry-level Node.js jobs — ${date}`,
+    subject: `Daily Node.js jobs — ${date}`,
     text: `Top ${jobs.length} openings for ${date}\n\n${text}`,
-    html: `<h2>Daily entry-level Node.js jobs</h2><p>Top ${jobs.length} listings found on ${date}.</p><table border="1" cellpadding="10" cellspacing="0"><thead><tr><th>#</th><th>Opening</th><th>Key requirements</th><th>Application</th></tr></thead><tbody>${rows}</tbody></table>`,
+    html: `<h2>Daily Node.js jobs</h2><p>Top ${jobs.length} listings found on ${date}.</p><table border="1" cellpadding="10" cellspacing="0"><thead><tr><th>#</th><th>Opening</th><th>Key requirements</th><th>Application</th></tr></thead><tbody>${rows}</tbody></table>`,
   };
 }
 
