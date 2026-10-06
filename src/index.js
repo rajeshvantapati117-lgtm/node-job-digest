@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 
 const locations = ['Hyderabad', 'Bengaluru', 'Chennai', 'Visakhapatnam', 'Remote'];
 const recipient = process.env.JOB_EMAIL_TO || 'rajeshvantapati117@gmail.com';
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const required = (name) => {
   if (!process.env[name]) throw new Error(`Missing ${name}. Add it to .env or GitHub Secrets.`);
@@ -40,7 +41,12 @@ async function search(location) {
     max_days_old: '14',
     sort_by: 'date',
   }).toString();
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  let response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (response.status === 429) {
+    const retryAfterSeconds = Number(response.headers.get('retry-after')) || 3;
+    await sleep(Math.min(retryAfterSeconds, 10) * 1000);
+    response = await fetch(url, { headers: { Accept: 'application/json' } });
+  }
   if (!response.ok) throw new Error(`Adzuna request failed for ${location}: ${response.status}`);
   const { results = [] } = await response.json();
   return results.map((job) => ({ ...job, searchLocation: location }));
@@ -67,7 +73,13 @@ function composeEmail(jobs) {
 }
 
 async function main() {
-  const jobs = selectJobs((await Promise.all(locations.map(search))).flat());
+  const results = [];
+  for (const location of locations) {
+    results.push(...await search(location));
+    // Keep free-tier API requests below burst-rate limits.
+    if (location !== locations.at(-1)) await sleep(1000);
+  }
+  const jobs = selectJobs(results);
   if (!jobs.length) throw new Error('No matching jobs were found today.');
   const email = composeEmail(jobs);
   if (process.env.DRY_RUN === 'true') return console.log(email.text);
