@@ -2,7 +2,7 @@
   "name": "node-job-digest",
   "version": "1.0.0",
   "private": true,
-  "description": "Daily entry-level Node.js job search and email digest.",
+  "description": "Daily resume-matched backend job search and email digest.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
