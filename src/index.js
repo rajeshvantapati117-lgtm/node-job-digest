@@ -10,6 +10,7 @@ const skillKeywords = [
   'node.js', 'express', 'mongodb', 'mysql', 'redis', 'rest api', 'microservice',
   'websocket', 'jwt', 'oauth', 'rbac', 'sequelize', 'mongoose', 'jest', 'swagger', 'openapi',
 ];
+const MAX_EXPERIENCE_YEARS = 4;
 
 const required = (name) => {
   if (!process.env[name]) throw new Error(`Missing ${name}. Add it to .env or GitHub Secrets.`);
@@ -33,6 +34,18 @@ function requirements(description) {
     /require|skill|experience|node(?:\.js)?|javascript|express|api|sql|mongodb|typescript|degree/i.test(sentence),
   ).slice(0, 3);
   return (selected.length ? selected : sentences.slice(0, 2)).join(' ').trim() || 'See the application page for requirements.';
+}
+
+function isWithinExperienceLimit(job) {
+  const text = `${job.title} ${plainText(job.description)}`.toLowerCase();
+  const ranges = [...text.matchAll(/(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:years?|yrs?)/g)];
+  if (ranges.length) return ranges.some((match) => Number(match[2]) <= MAX_EXPERIENCE_YEARS);
+
+  const plusYears = [...text.matchAll(/(\d+)\s*\+\s*(?:years?|yrs?)/g)];
+  if (plusYears.length) return plusYears.some((match) => Number(match[1]) <= MAX_EXPERIENCE_YEARS);
+
+  const exactYears = [...text.matchAll(/(?:experience(?:\s+of)?|minimum|min\.?|at least)?\s*(\d+)\s*(?:years?|yrs?)/g)];
+  return exactYears.length > 0 && exactYears.some((match) => Number(match[1]) <= MAX_EXPERIENCE_YEARS);
 }
 
 async function search(location, searchTerm) {
@@ -71,6 +84,7 @@ function selectJobs(results) {
   };
   return results
     .filter((job) => job.title && job.company?.display_name && job.redirect_url)
+    .filter(isWithinExperienceLimit)
     .filter((job) => skillScore(job).matches >= 2)
     .filter((job) => !seen.has(job.redirect_url) && seen.add(job.redirect_url))
     .sort((a, b) => skillScore(b).score - skillScore(a).score || new Date(b.created || 0) - new Date(a.created || 0))

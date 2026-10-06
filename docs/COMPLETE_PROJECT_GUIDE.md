@@ -4,6 +4,8 @@
 
 This is a standalone Node.js automation. Every day, GitHub Actions starts the app at **12:00 PM India Standard Time**. The app searches Adzuna for recent backend jobs in Hyderabad, Bengaluru, Chennai, Visakhapatnam, and Remote. It scores each result against the skills in Rajesh's resume and emails the five best distinct matches.
 
+Only roles with an explicit stated experience requirement of **four years or less** are eligible. Listings that do not state an experience requirement are excluded, so the digest stays within this limit.
+
 Resume skills used for matching: Node.js, Express.js, MongoDB, MySQL, Redis, REST APIs, microservices, WebSockets, JWT, OAuth, RBAC, Sequelize, Mongoose, Jest, Swagger, and OpenAPI.
 
 ## 2. Project files
@@ -148,6 +150,19 @@ async function search(location, searchTerm) { ... }
 - `response.json()` reads the returned data. `results = []` means an empty list is safe if Adzuna omits the field.
 - The last line adds `searchLocation` and `searchTerm` to every result; those fields help explain and display the listing later.
 
+### Experience-limit filter
+
+```js
+const MAX_EXPERIENCE_YEARS = 4;
+function isWithinExperienceLimit(job) { ... }
+```
+
+- `MAX_EXPERIENCE_YEARS` is the maximum stated job requirement allowed in the email.
+- `isWithinExperienceLimit` reads the title and description, then recognizes forms such as `2-4 years`, `3 to 4 years`, `3+ years`, and `3 years`.
+- A range is allowed only when its upper number is four or lower. A `5-7 years` listing is excluded.
+- A `3+ years` listing is allowed because the minimum requirement is within your experience level.
+- Listings without any clear experience requirement are excluded. This ensures that the email contains only roles with an explicit requirement of four years or less.
+
 ### Lines 62–86: matching, filtering, ranking, and selecting five jobs
 
 ```js
@@ -163,8 +178,9 @@ function selectJobs(results) { ... }
   - Adds 25 points for titles containing Backend, Software Engineer, or API Developer.
   - Removes 60 points from Java/Spring/SAP/Oracle-led titles unless the title explicitly says Node.js.
 - First `filter` rejects incomplete records without title, company, or application URL.
-- Second `filter` requires at least two resume-skill matches.
-- Third `filter` retains only the first occurrence of an application URL.
+- Second `filter` applies the four-years-or-less experience rule.
+- Third `filter` requires at least two resume-skill matches.
+- Fourth `filter` retains only the first occurrence of an application URL.
 - `sort` orders by score descending; if scores tie, the newer listing comes first.
 - `slice(0, 5)` returns at most five jobs.
 

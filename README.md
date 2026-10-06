@@ -1,6 +1,6 @@
 # Node Job Digest
 
-Searches Adzuna every day for experienced backend roles in Hyderabad, Bengaluru, Chennai, Visakhapatnam, and Remote. It ranks **Node.js, Express.js, MongoDB, MySQL, Redis, REST API, microservices, WebSockets, JWT/RBAC, Jest, and Swagger/OpenAPI** matches, then emails five distinct openings with company, application link, and key requirements.
+Searches Adzuna every day for backend roles requiring **up to four years of experience** in Hyderabad, Bengaluru, Chennai, Visakhapatnam, and Remote. It ranks **Node.js, Express.js, MongoDB, MySQL, Redis, REST API, microservices, WebSockets, JWT/RBAC, Jest, and Swagger/OpenAPI** matches, then emails five distinct openings with company, application link, and key requirements.
 
 ## Setup
 
