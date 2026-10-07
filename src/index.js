@@ -93,6 +93,13 @@ function selectJobs(results) {
 
 function composeEmail(jobs) {
   const date = new Intl.DateTimeFormat('en-IN', { dateStyle: 'full', timeZone: 'Asia/Kolkata' }).format(new Date());
+  if (!jobs.length) {
+    return {
+      subject: `Daily backend job digest — ${date}`,
+      text: `No jobs matching your backend skills and four-years-or-less experience limit were found on ${date}. The search will run again tomorrow.`,
+      html: `<h2>Daily backend job digest</h2><p>No jobs matching your backend skills and four-years-or-less experience limit were found on ${escapeHtml(date)}.</p><p>The search will run again tomorrow.</p>`,
+    };
+  }
   const text = jobs.map((job, index) => `${index + 1}. ${job.title} — ${job.company.display_name}\nLocation: ${job.location?.display_name || job.searchLocation}\nKey requirements: ${requirements(job.description)}\nApply: ${job.redirect_url}`).join('\n\n');
   const rows = jobs.map((job, index) => `<tr><td>${index + 1}</td><td><strong>${escapeHtml(job.title)}</strong><br>${escapeHtml(job.company.display_name)}<br>${escapeHtml(job.location?.display_name || job.searchLocation)}</td><td>${escapeHtml(requirements(job.description))}</td><td><a href="${escapeHtml(job.redirect_url)}">Apply now</a></td></tr>`).join('');
   return {
@@ -112,7 +119,6 @@ async function main() {
     }
   }
   const jobs = selectJobs(results);
-  if (!jobs.length) throw new Error('No matching jobs were found today.');
   const email = composeEmail(jobs);
   if (process.env.DRY_RUN === 'true') return console.log(email.text);
 
@@ -122,7 +128,7 @@ async function main() {
     auth: { user, pass: required('GMAIL_APP_PASSWORD') },
   });
   await transporter.sendMail({ from: `Node.js Job Digest <${user}>`, to: recipient, ...email });
-  console.log(`Sent ${jobs.length} jobs to ${recipient}.`);
+  console.log(`Sent ${jobs.length ? `${jobs.length} job listings` : 'a no-matches status update'} to ${recipient}.`);
 }
 
 main().catch((error) => {
