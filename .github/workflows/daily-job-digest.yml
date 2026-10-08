@@ -2,7 +2,7 @@ name: Daily Node.js job digest
 
 on:
   schedule:
-    # 06:30 UTC = 12:00 PM Asia/Kolkata (IST)
+    # 06:30 UTC = 12:00 PM IST
     - cron: '30 6 * * *'
   workflow_dispatch:
 
@@ -12,17 +12,35 @@ permissions:
 jobs:
   send-digest:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run jobs:daily
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run daily job digest
         env:
           ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           JOB_EMAIL_TO: rajeshvantapati117@gmail.com
+        run: |
+          echo "Starting Node.js job digest..."
+          node --version
+          npm --version
+          echo "Checking required environment variables..."
+          test -n "$ADZUNA_APP_ID" || { echo "ERROR: ADZUNA_APP_ID is missing"; exit 1; }
+          test -n "$ADZUNA_APP_KEY" || { echo "ERROR: ADZUNA_APP_KEY is missing"; exit 1; }
+          test -n "$GMAIL_USER" || { echo "ERROR: GMAIL_USER is missing"; exit 1; }
+          test -n "$GMAIL_APP_PASSWORD" || { echo "ERROR: GMAIL_APP_PASSWORD is missing"; exit 1; }
+          echo "All required secrets are available."
+          npm run jobs:daily
