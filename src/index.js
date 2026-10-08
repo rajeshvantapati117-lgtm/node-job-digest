@@ -38,14 +38,36 @@ function requirements(description) {
 
 function isWithinExperienceLimit(job) {
   const text = `${job.title} ${plainText(job.description)}`.toLowerCase();
-  const ranges = [...text.matchAll(/(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:years?|yrs?)/g)];
-  if (ranges.length) return ranges.some((match) => Number(match[2]) <= MAX_EXPERIENCE_YEARS);
 
-  const plusYears = [...text.matchAll(/(\d+)\s*\+\s*(?:years?|yrs?)/g)];
-  if (plusYears.length) return plusYears.some((match) => Number(match[1]) <= MAX_EXPERIENCE_YEARS);
+  const numbers = [];
 
-  const exactYears = [...text.matchAll(/(?:experience(?:\s+of)?|minimum|min\.?|at least)?\s*(\d+)\s*(?:years?|yrs?)/g)];
-  return exactYears.length > 0 && exactYears.some((match) => Number(match[1]) <= MAX_EXPERIENCE_YEARS);
+  for (const match of text.matchAll(
+    /(\d+)\s*(?:-|–|to)\s*(\d+)\s*(?:years?|yrs?)/g
+  )) {
+    numbers.push(Number(match[2]));
+  }
+
+  for (const match of text.matchAll(
+    /(\d+)\s*\+\s*(?:years?|yrs?)/g
+  )) {
+    numbers.push(Number(match[1]));
+  }
+
+  for (const match of text.matchAll(
+    /(\d+)\s*(?:years?|yrs?)/g
+  )) {
+    numbers.push(Number(match[1]));
+  }
+
+  for (const match of text.matchAll(
+    /(\d+)\s+experience\b/gi
+  )) {
+    numbers.push(Number(match[1]));
+  }
+
+  if (!numbers.length) return true;
+
+  return Math.max(...numbers) <= MAX_EXPERIENCE_YEARS;
 }
 
 async function search(location, searchTerm) {
@@ -60,14 +82,44 @@ async function search(location, searchTerm) {
     sort_by: 'date',
   }).toString();
   let response = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (response.status === 429) {
-    const retryAfterSeconds = Number(response.headers.get('retry-after')) || 3;
+  if ([429, 500, 502, 503, 504].includes(response.status)) {
+    const retryAfterSeconds =
+      Number(response.headers.get('retry-after')) || 3;
+
     await sleep(Math.min(retryAfterSeconds, 10) * 1000);
-    response = await fetch(url, { headers: { Accept: 'application/json' } });
+
+    response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+    });
   }
-  if (!response.ok) throw new Error(`Adzuna request failed for ${location}: ${response.status}`);
+  if (!response.ok) {
+    console.error(`Adzuna request failed for ${location}: ${response.status}`);
+    return [];
+  }
   const { results = [] } = await response.json();
   return results.map((job) => ({ ...job, searchLocation: location, searchTerm }));
+}
+
+function isRelevantNodeJob(job) {
+  const title = plainText(job.title).toLowerCase();
+  const description = plainText(job.description).toLowerCase();
+
+  const nodeInTitle = /node\s*\.?\s*js|nodejs/.test(title);
+
+  const backendInTitle =
+    /backend|back-end|api developer|software engineer/.test(title);
+
+  const nodeInDescription =
+    /node\s*\.?\s*\.?\s*js|nodejs/.test(description);
+
+  const excludedTitle =
+    /python|java developer|frontend|front-end|react\s*\.?\s*js?\s*developer|angular developer|php developer|\.net developer/.test(title);
+
+  if (excludedTitle) return false;
+
+  if (nodeInTitle) return true;
+
+  return backendInTitle && nodeInDescription;
 }
 
 function selectJobs(results) {
@@ -85,6 +137,7 @@ function selectJobs(results) {
   return results
     .filter((job) => job.title && job.company?.display_name && job.redirect_url)
     .filter(isWithinExperienceLimit)
+    .filter(isRelevantNodeJob)
     .filter((job) => skillScore(job).matches >= 2)
     .filter((job) => !seen.has(job.redirect_url) && seen.add(job.redirect_url))
     .sort((a, b) => skillScore(b).score - skillScore(a).score || new Date(b.created || 0) - new Date(a.created || 0))
